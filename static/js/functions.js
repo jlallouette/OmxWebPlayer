@@ -130,7 +130,7 @@ function hideOnClickoutAction(e, select) {
 }
 
 updateData(true);
-//setInterval(function(){updateData(false)}, 1000);
+//gUpdateDataInterval = setInterval(function(){updateData(false)}, 1000);
 
 
 $(function() {
@@ -145,18 +145,24 @@ $(function() {
 	$(document).on('click', '.PlayButton', function(e) {
 		updatePlayPauseButtons(true);
 		updateStopButton(true);
-		sendOrder('play', {}, {anyway: function(d){updatePlayPauseButtons(d.result);updateFormatSelector(d.updatedList, d.selectedFormat);}, ok: function(d){}}, function(d){return "Couldn't play.";});
+		sendOrder('play', {}, {anyway: function(d){updatePlayPauseButtons(d.result);updateFormatSelector(d.updatedList, d.selectedFormat);}, ok: function(d){
+			gUpdateDataInterval = setInterval(function(){updateData(false)}, 1000);
+		}}, function(d){return "Couldn't play.";});
 	});
 	$(document).on('click', '.PauseButton', function(e) {
 		updatePlayPauseButtons(false);
-		sendOrder('pause', {}, {anyway: function(d){updatePlayPauseButtons(!d.result);}, ok: function(d){}}, function(d){return "Couldn't pause.";});
+		sendOrder('pause', {}, {anyway: function(d){updatePlayPauseButtons(!d.result);}, ok: function(d){
+			clearInterval(gUpdateDataInterval);
+		}}, function(d){return "Couldn't pause.";});
 	});
 	$(document).on('click', '.StopButton', function(e) {
 		if (gPlaying) {
 			updatePlayPauseButtons(false);
 			updateStopButton(false);
 			updateProgressBar(0, gDuration);
-			sendOrder('stop', {}, {anyway: function(d){updatePlayPauseButtons(!d.result);}, ok: function(d){}}, function(d){return "Couldn't stop.";});
+			sendOrder('stop', {}, {anyway: function(d){updatePlayPauseButtons(!d.result);}, ok: function(d){
+				clearInterval(gUpdateDataInterval);
+			}}, function(d){return "Couldn't stop.";});
 		}
 	});
 	$(document).on('change', '.FormatSelector', function() {

@@ -9,9 +9,10 @@ def updatePlaylists(lock, appli):
 			playlists = [pl for pl in Playlist.select().where(~(Playlist.justCreated) & Playlist.parent.is_null())]
 		for pl in playlists:
 			print('Updating playlist:', pl.URL)
-			ProcessPathURL(pl.URL, pl.name, pl = pl, changeCallBack = lambda x:appli.playlistUpdated(x), lock=lock)
+			ProcessPathURL(pl.URL, pl.name, pl = pl, changeCallBack = lambda x:appli.playlistUpdated(x), lock=lock, slow = True)
 		# TODO Set this as a parameter
 			sleep(5)
+		sleep(5)
 
 class UpdateData:
 	def __init__(self, temp, hsh):

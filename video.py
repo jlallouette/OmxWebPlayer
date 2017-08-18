@@ -3,6 +3,7 @@ from multiprocessing import Queue
 import json
 import datetime
 import re
+from time import sleep
 from flask import Markup
 from peewee import *
 import glob
@@ -24,20 +25,21 @@ class BaseModel(Model):
 # Utility functions #
 #####################
 
-def ProcessPathURL(urlPath, name, pl = None, changeCallBack = None, lock = None):
+def ProcessPathURL(urlPath, name, pl = None, changeCallBack = None, lock = None, slow = False):
 	# Determine if the urlPath is an URL or a local path
 	urlre = re.compile('^https?://.+')
 	if urlre.match(urlPath):
 		return ProcessYoutubeURL(urlPath, name, pl, changeCallBack, lock)
 	else:
-		return ProcessPath(urlPath, name, pl, changeCallBack, lock)
+		return ProcessPath(urlPath, name, pl, changeCallBack, lock, slow = slow)
 
 # Scans a path and adds all the videos to the database
 # Creates a new playlist for each non empty subfolder 
-def ProcessPath(path, name, pl = None, changeCallBack = None, lock = None, firstCall=True):
+def ProcessPath(path, name, pl = None, changeCallBack = None, lock = None, firstCall=True, slow = False):
 	with lock:
 		extRe=re.compile('(.*?)\.(' + '|'.join(Parameters.get().extensions.split()) + ')$')
 		defaultPl = Parameters.get().defaultPlaylist
+		sleepTime = Parameters.get().backgroundSleepTime
 	allPl = []
 	for dirpath, dirNames, fileNames in os.walk(path):
 		vidFileMatch = list(filter(lambda x: x, map(extRe.match, fileNames)))
@@ -69,6 +71,8 @@ def ProcessPath(path, name, pl = None, changeCallBack = None, lock = None, first
 						currPl.nbVids += 1
 						currPl.save()
 					changeCallBack(currPl)
+				if slow:
+					sleep(sleepTime)
 
 			# Remove deleted or unaccessible videos
 			with lock:
@@ -82,7 +86,7 @@ def ProcessPath(path, name, pl = None, changeCallBack = None, lock = None, first
 
 			# Add subdirectories
 			for dirn in dirNames:
-				allPl += ProcessPath(os.path.join(path, dirn), name, currPl, changeCallBack, lock, firstCall=False) 
+				allPl += ProcessPath(os.path.join(path, dirn), name, currPl, changeCallBack, lock, firstCall=False, slow = slow) 
 
 			# Delete empty playlists
 			with lock:
@@ -319,6 +323,7 @@ class Parameters(BaseModel):
 	cookiesPath = TextField(null=True)
 	extensions = TextField(null=True)
 	defaultPlaylist = ForeignKeyField(Playlist, null=True)
+	backgroundSleepTime = DoubleField(default = 1.0)
 
 #####################################
 # Create tables if they don't exist #

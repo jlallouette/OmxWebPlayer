@@ -1,7 +1,6 @@
 #import subprocess
 from omxplayer import OMXPlayer
 import copy
-from time import sleep
 
 from video import *
 
