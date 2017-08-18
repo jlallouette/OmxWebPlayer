@@ -1,0 +1,38 @@
+{# video.html #}
+<div class="video">
+	<div><span class="ErrorBar">{{ ErrorStr }}</span></div>
+{% if appli.player.currVideo %}
+	<h1>{{ appli.player.currVideo.title }}</h1>
+	<div class="VideoInt">
+		<div class="Thumbnail">
+			<img src="{{ appli.player.currVideo.getThumbnail() }}"/>
+			<button class="OverlayButton PauseButton"><img src="static/img/Pause.png"/></button>
+			<button class="OverlayButton PlayButton"><img src="static/img/Play.png"/></button>
+		</div>
+		<div class="ProgressBar" id="VideoPB">
+			<span></span>
+			<div class="ProgressBarTooltip"></div>
+			<div class="ProgressPlayed" id="VideoPP"> </div>
+		</div>
+		<div class="VideoControlBar">
+			<button class="PauseButton"><img src="static/img/Pause.png"/></button>
+			<button class="PlayButton"><img src="static/img/Play.png"/></button>
+			<button class="StopButton"><img src="static/img/Stop.png"/></button>
+			<select class="FormatSelector">
+			{% for format, formatId in appli.player.getFormatListItems() %}
+				<option value="{{ formatId }}" {% if appli.player.formatId == formatId %}selected{% endif %} >
+				{{ format }}
+				</option>
+			{% endfor %}
+			</select>
+		</div>
+	</div>
+	<div class="Description">
+	<h2>Description</h2>
+	<p>{{ appli.player.currVideo.getDescription() }}</p>
+	</div>
+{% endif %}
+	<div class="LoadingIndicator">
+		<img src="static/img/loading.gif"/>
+	</div>
+</div>

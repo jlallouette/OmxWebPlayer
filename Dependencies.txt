@@ -1,0 +1,8 @@
+flask
+markdown
+pexpect
+omxplayer-wrapper
+peewee
+av
+sudo apt-get install python3-dbus libav-tools // Other things for libav ?
+libavformat-dev libavcodec-dev libavdevice-dev libavutil-dev libswscale-dev libavresample-dev libavfilter-dev

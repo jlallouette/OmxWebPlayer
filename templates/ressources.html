@@ -1,0 +1,14 @@
+{# ressources.html #}
+<div class="ressources">
+{%- for pl in appli.getRessources() -%}
+	<a href="#" class="RessourceLink" value="{{ pl.id }}" style="margin-left:{{ pl.depth * 5 }}px;">
+	<div class="ProgressBar RessourceProgressBar" id="Ressource{{ pl.id }}PB" style="width:calc(100% - {{ pl.depth * 5 }}px);">
+		<span>{{ pl.name }} ({{ '%s / %s' % (pl.getNbVids(), pl.getTotalNbVids()) }})</span>
+		<div class="ProgressPlayed RessourceProgressPlayed" id="Ressource{{ pl.id }}PP" style="width:{{ pl.getNbVids() / (pl.getTotalNbVids() if pl.getTotalNbVids() > 0 else 1) * 100 }}%;"> </div>
+	</div>
+	</a>
+{%- endfor -%}
+	<div class="LoadingIndicator">
+		<img src="static/img/loading.gif"/>
+	</div>
+</div>
