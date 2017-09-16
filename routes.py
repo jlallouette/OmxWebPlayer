@@ -19,6 +19,9 @@ from markdown import markdown
 
 from application import *
 
+#import logging
+#logging.basicConfig(filename='/tmp/OMXWebInterface.log')
+
 app = Flask(__name__)
 appli = Application()
 
@@ -26,7 +29,7 @@ appli = Application()
 def getStatus():
 	oldHashes = request.args.get('updateHashes', '', type=str)
 	oldHashes = json.loads(oldHashes)
-	return jsonify(playerStatus = appli.getPlayerStatus(), updatedParts = appli.getUpdatedParts(oldHashes))
+	return jsonify(Status = appli.getStatus(), updatedParts = appli.getUpdatedParts(oldHashes))
 
 @app.route('/_sendOrder')
 def sendOrder():
@@ -35,14 +38,14 @@ def sendOrder():
 	oldHashes = request.args.get('updateHashes', '', type=str)
 	oldHashes = json.loads(oldHashes)
 	if order in ['play','pause']:
-		resul = appli.player.playPause()
-		res = jsonify(result = resul, updatedList=appli.player.getFormatList(), selectedFormat=appli.player.formatId)
+		resul = appli.playPause()
+		res = jsonify(result = resul)
 	elif order == 'stop':
 		res = jsonify(result = appli.player.stop())
 	elif order == 'changeFormat':
-		formatId = request.args.get('formatId', '-1', str)
-		ok = appli.player.setFormat(formatId)
-		res = jsonify(result = ok, updatedList=appli.player.getFormatList(), selectedFormat=appli.player.formatId)
+		formatId = request.args.get('formatId', '0', int)
+		ok = appli.setFormat(formatId)
+		res = jsonify(result = ok)
 	elif order == 'changePos':
 		relPos = request.args.get('relPos', 0, type=float)
 		res = jsonify(result=appli.player.setPosition(relPos * appli.player.getDuration()), position=appli.player.getPosition(), duration=appli.player.getDuration(), isPlaying = appli.player.isPlaying())
@@ -62,6 +65,10 @@ def sendOrder():
 	elif order == 'search':
 		searchStr = request.args.get('searchString', '', type=str)
 		ok = appli.searchFilter(searchStr)
+		res = jsonify(result = ok, updatedParts = appli.getUpdatedParts(oldHashes))
+	elif order == 'refreshRessource':
+		plId = request.args.get('ressourceId', -1, type=int)
+		ok = appli.refreshRessource(plId)
 		res = jsonify(result = ok, updatedParts = appli.getUpdatedParts(oldHashes))
 	return res
 

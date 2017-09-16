@@ -2,10 +2,12 @@
 var gPosition = 0;
 var gDuration = 1;
 var gPlaying = false;
+var gPaused = false;
 var gPlaylistChangeHash = 0;
 var gUpdateHashes = {video:'-1', playlist:'-1', ressources:'-1'};
-var gRessourceProgress = {};
 var gSearchTimeout = null;
+var gUpdateDataInterval = null;
+var gRotateTimers = {}
 
 function displayError(text) {
 	$('.ErrorBar').text(text);
@@ -30,17 +32,6 @@ function updateStopButton(playing) {
 	}
 }
 
-function updateFormatSelector(formatList, selFormat) {
-	$(".FormatSelector").empty();
-	$.each(formatList, function(format, formatId) {
-		if (formatId == selFormat) {
-			$(".FormatSelector").append($('<option value="' + formatId + '" selected>' + format + '</option>'));
-		} else {
-			$(".FormatSelector").append($('<option value="' + formatId + '">' + format + '</option>'));
-		}
-	});
-}
-
 function updateProgressBar(position, duration) {
 	gPosition = position;
 	gDuration = duration;
@@ -48,14 +39,20 @@ function updateProgressBar(position, duration) {
 	$(".ProgressBar#VideoPB span").text(getHRTime(position) + ' / ' + getHRTime(duration));
 }
 
+function updatePlaying(state, paused) {
+	if (typeof(paused)==='undefined') paused = false;
+	gPaused = paused;
+	updatePlayPauseButtons(state);
+	updateStopButton(state || paused);
+}
+
 function updateData(first) {
 	$.getJSON($SCRIPT_ROOT + '/_getStatus', {updateHashes: JSON.stringify(gUpdateHashes)}, function(data) {
 		updateParts(data.updatedParts);
-		gPlaying = data.playerStatus.isPlaying;
-		updateStopButton(data.playerStatus.isPlaying);
-		if (gPlaying || first) {
-			updateProgressBar(data.playerStatus.position, data.playerStatus.duration);
-			updatePlayPauseButtons(data.playerStatus.isPlaying);
+		updatePlaying(data.Status.isPlaying, data.Status.isPaused);
+		setAutoUpdate(data.Status.isPlaying || data.Status.isUpdating);
+		if (gPlaying || gPaused || first) {
+			updateProgressBar(data.Status.position, data.Status.duration);
 		}
 	});
 }
@@ -129,53 +126,104 @@ function hideOnClickoutAction(e, select) {
 	e.stopPropagation();
 }
 
+function setAutoUpdate(state) {
+	if (gUpdateDataInterval && !state) {
+		clearInterval(gUpdateDataInterval);
+		gUpdateDataInterval = null;
+	} else if (!gUpdateDataInterval && state) {
+		gUpdateDataInterval = setInterval(function(){updateData(false)}, 1000);
+	}
+}
+
+function setRotateTimer(elemId, state) {
+	if (!state) {
+		clearInterval(gRotateTimers[elemId]['timer']);
+		gRotateTimers[elemId] = null;
+	} else {
+		gRotateTimers[elemId] = {}
+		gRotateTimers[elemId]['timer'] = setInterval(function(){rotateTimer(elemId)}, 50);
+		gRotateTimers[elemId]['angle'] = 0;
+	}
+}
+
+function rotateTimer(elemId) {
+	gRotateTimers[elemId]['angle'] += 15;
+	$('.RefreshButton#'+elemId).css('transform', 'rotate(' + gRotateTimers[elemId]['angle'] + 'deg)');
+}
+
 updateData(true);
 //gUpdateDataInterval = setInterval(function(){updateData(false)}, 1000);
 
 
 $(function() {
 	$(document).on('click', '.ProgressBar#VideoPB', function(e) {
-		var posX = $(this).position().left;
+		var posX = $(this).offset().left;
 		var wdth = $(this).width();
+		setLoading('.Thumbnail', true);
 		updateProgressBar((e.pageX - posX)/wdth*gDuration, gDuration);
+		setAutoUpdate(false)
 		sendOrder('changePos', {relPos: (e.pageX - posX)/wdth}, {
-			anyway: function(d){updateProgressBar(d.position, d.duration);gPlaying = d.isPlaying;}, 
+			anyway: function(d){
+				updateProgressBar(d.position, d.duration);
+				updatePlaying(d.isPlaying, d.isPaused);
+				setAutoUpdate(d.isPlaying);
+				setLoading('.Thumbnail', false);
+			}, 
 			ok: function(d){}}, function(d){return "Couldn't jump to the specified point.";});
 	});
 	$(document).on('click', '.PlayButton', function(e) {
-		updatePlayPauseButtons(true);
-		updateStopButton(true);
-		sendOrder('play', {}, {anyway: function(d){updatePlayPauseButtons(d.result);updateFormatSelector(d.updatedList, d.selectedFormat);}, ok: function(d){
-			gUpdateDataInterval = setInterval(function(){updateData(false)}, 1000);
+		updatePlaying(true);
+		setLoading('.Thumbnail', true);
+		sendOrder('play', {}, {
+			anyway: function(d){
+				updatePlaying(d.result);
+				setLoading('.Thumbnail', false);
+			}, 
+			ok: function(d){
+				setAutoUpdate(true);
 		}}, function(d){return "Couldn't play.";});
 	});
 	$(document).on('click', '.PauseButton', function(e) {
-		updatePlayPauseButtons(false);
-		sendOrder('pause', {}, {anyway: function(d){updatePlayPauseButtons(!d.result);}, ok: function(d){
-			clearInterval(gUpdateDataInterval);
+		updatePlaying(false, true);
+		setLoading('.Thumbnail', true);
+		sendOrder('pause', {}, {
+			anyway: function(d){
+				updatePlaying(!d.result, d.result);
+				setLoading('.Thumbnail', false);
+			}, 
+			ok: function(d){
+				setAutoUpdate(false);
 		}}, function(d){return "Couldn't pause.";});
 	});
 	$(document).on('click', '.StopButton', function(e) {
 		if (gPlaying) {
-			updatePlayPauseButtons(false);
-			updateStopButton(false);
+			setLoading('.Thumbnail', true);
+			updatePlaying(false);
 			updateProgressBar(0, gDuration);
-			sendOrder('stop', {}, {anyway: function(d){updatePlayPauseButtons(!d.result);}, ok: function(d){
-				clearInterval(gUpdateDataInterval);
+			sendOrder('stop', {}, {
+				anyway: function(d){
+					updatePlaying(!d.result);
+					setLoading('.Thumbnail', false);
+				}, 
+				ok: function(d){
+					setAutoUpdate(false);
 			}}, function(d){return "Couldn't stop.";});
 		}
 	});
 	$(document).on('change', '.FormatSelector', function() {
 		var newFormat = $('.FormatSelector option:selected').text();
+		setLoading('.Thumbnail', true);
 		sendOrder('changeFormat', {formatId: $(this).val()}, {
-			anyway: function(d){updateFormatSelector(d.updatedList, d.selectedFormat);}, 
+			anyway: function(d){
+				setLoading('.Thumbnail', false);
+			}, 
 			ok: function(d){}}, 
 			function(d){return "Couldn't change the format to " + newFormat + ".";});
 	});
 	$(document).on('mouseenter', '.ProgressBar#VideoPB', function(e) {$('.ProgressBarTooltip').css('display', 'inline-block');});
 	$(document).on('mouseleave', '.ProgressBar#VideoPB', function(e) {$('.ProgressBarTooltip').css('display', 'none');});
 	$(document).on('mousemove', '.ProgressBar#VideoPB', function(e) {
-		var posX = $(this).position().left;
+		var posX = $(this).offset().left;
 		var wdth = $(this).width();
 		$('.ProgressBarTooltip').text(getHRTime(((e.pageX - posX)/wdth)*gDuration));
 		$('.ProgressBarTooltip').css('left', e.pageX-posX-$('.ProgressBarTooltip').width()/2 + 'px');
@@ -196,6 +244,7 @@ $(function() {
 	});
 	$(document).on('click', '#RessourceAddBtn', function() {
 		setLoading('#AddRessourceDiag', true);
+		setAutoUpdate(true);
 		sendOrder('processURL', {urlPath: $('#ressourceUrlPath').val(), name:$('#ressourceName').val()}, {anyway: function(d){
 			setLoading('#AddRessourceDiag', false);
 			$('#AddRessourceDiag').slideUp("slow", function() {}); 
@@ -224,5 +273,14 @@ $(function() {
 			}
 			gSearchTimeout = setTimeout(triggerSearch, 1000)
 		}
+	});
+	$(document).on('click', '.RefreshButton', function(e) {
+		e.stopPropagation();
+		elemId = $(this).attr('id');
+		setRotateTimer(elemId, true);
+		setAutoUpdate(true);
+		sendOrder('refreshRessource', {ressourceId: $(this).attr('id')}, {anyway: function(d){
+			setRotateTimer(elemId, false);
+		}, ok:function(d){}}, function(d){return "Couldn't refresh ressource.";});
 	});
 });

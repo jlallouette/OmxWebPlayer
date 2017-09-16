@@ -82,6 +82,11 @@ body {
 	width:100%;
 }
 
+.RefreshButton img {
+	position:relative;
+	height:100%;
+}
+
 .InterfaceButton {
 	border: none;
 	outline:none;
@@ -89,6 +94,19 @@ body {
 	padding:0px;
 	width: 30px;
 	background-color: rgba(255, 255, 255, 0);
+}
+
+.RefreshButton {
+	display:inline-block;
+	border: none;
+	outline:none;
+	margin:0px;
+	padding:0px;
+	height: 15px;
+	background-color: rgba(255, 255, 255, 0);
+	z-index:2;
+	position:relative;
+	float:right;
 }
 
 .OverlayButton {

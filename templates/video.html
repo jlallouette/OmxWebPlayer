@@ -8,6 +8,9 @@
 			<img src="{{ appli.player.currVideo.getThumbnail() }}"/>
 			<button class="OverlayButton PauseButton"><img src="static/img/Pause.png"/></button>
 			<button class="OverlayButton PlayButton"><img src="static/img/Play.png"/></button>
+			<div class="LoadingIndicator">
+				<img src="static/img/loading.gif"/>
+			</div>
 		</div>
 		<div class="ProgressBar" id="VideoPB">
 			<span></span>
@@ -19,7 +22,7 @@
 			<button class="PlayButton"><img src="static/img/Play.png"/></button>
 			<button class="StopButton"><img src="static/img/Stop.png"/></button>
 			<select class="FormatSelector">
-			{% for format, formatId in appli.player.getFormatListItems() %}
+			{% for formatId, format in appli.player.getFormatListItems() %}
 				<option value="{{ formatId }}" {% if appli.player.formatId == formatId %}selected{% endif %} >
 				{{ format }}
 				</option>

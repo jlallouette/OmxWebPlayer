@@ -7,13 +7,14 @@ from video import *
 class Player:
 	def __init__(self):
 		self.currVideo = None
-		self.formatId = -1
+		self.formatId = 0
 		self.omxProcess = None
 	
 	def LoadVideo(self, video):
 		if self.isStarted():
 			self.stop()
 		self.currVideo = video
+		self.formatId = 0
 
 	# Set the format of the video
 	def setFormat(self, formatId):
@@ -39,31 +40,43 @@ class Player:
 	def playPause(self):
 		if self.currVideo:
 			if self.isStarted():
-				if self.isPlaying():
-					self.omxProcess.pause()
-				else:
-					self.omxProcess.play()
-				return True
+				try:
+					if self.isPlaying():
+						self.omxProcess.pause()
+					else:
+						self.omxProcess.play()
+					return True
+				except:
+					self.clearPlayer()
+					return False
 			else:
 				ok = False
-				if self.formatId != -1:
+				if self.formatId != 0:
 					ok = self.tryPlayingFormat(self.formatId)
 				if not ok:
 					# Try to play formats starting from the highest resolution one
-					# TODO sort by resolution
-					for name, fid in self.currVideo.getFormatList().items():
-						if fid != -1 and self.tryPlayingFormat(fid):
+					for fid in range(1, len(self.currVideo.getFormatList())):
+						if self.tryPlayingFormat(fid):
 							ok = True
 							break
+					# TODO sort by resolution
+					#for name, fid in self.currVideo.getFormatList().items():
+					#	if fid != 0 and self.tryPlayingFormat(fid):
+					#		ok = True
+					#		break
 				return ok
 		return False
 
 	def stop(self):
-		if self.omxProcess:
-			self.omxProcess.quit()
-			self.omxProcess = None
-			return True
-		return False
+		try:
+			if self.omxProcess:
+				self.omxProcess.quit()
+				self.omxProcess = None
+				return True
+			return False
+		except:
+			self.clearPlayer()
+			return False
 
 	# Tries to play a given format of the video
 	def tryPlayingFormat(self, formatId):
@@ -74,58 +87,86 @@ class Player:
 			print('Trying to play ', formatId, 'path:', self.currVideo.getRessourcePath(formatId))
 			self.omxProcess = OMXPlayer(self.currVideo.getRessourcePath(formatId), args=['-b'])
 			# Wait a bit for loading before disqualifying the format
-			self.isPlaying()
-			sleep(2)
+			while self.omxProcess.playback_status() == 'Paused':
+				sleep(0.01)
 			if self.isPlaying():
 				print('isplaying:True')
 				return True
 		except Exception as e:
+			self.clearPlayer()
 			print(str(e), str(self.currVideo.getFormatList()))
 		# Handle the case in which the format couldn't be played
 		self.currVideo.removeFormat(formatId)
 		self.stop()
-		self.formatId = -1
+		self.formatId = 0
 		return False
 
 
 	def isPlaying(self):
-		return self.omxProcess and self.omxProcess.is_playing()
+		try:
+			return self.omxProcess and self.omxProcess.is_playing()
+		except:
+			self.clearPlayer()
+			return False
 
 	def isStarted(self):
-		return self.omxProcess and self.omxProcess.can_play()
+		try:
+			return self.omxProcess and self.omxProcess.can_play()
+		except:
+			self.clearPlayer()
+			return False
+
+	def isPaused(self):
+		return self.isStarted() and not self.isPlaying()
 
 	def getPosition(self):
-		if self.isStarted():
-			return self.omxProcess.position()
-		else:
+		try:
+			if self.isStarted():
+				return self.omxProcess.position()
+			else:
+				return 0
+		except:
+			self.clearPlayer()
 			return 0
 			
 	def getDuration(self):
-		if self.isStarted():
-			return int(self.omxProcess.duration())
-		elif self.currVideo:
-			return self.currVideo.duration
-		else:
+		try:
+			if self.isStarted():
+				return int(self.omxProcess.duration())
+			elif self.currVideo:
+				return self.currVideo.duration
+			else:
+				return 1
+		except:
+			self.clearPlayer()
 			return 1
 
 	def getStatus(self):
-		return {'position':self.getPosition(), 'duration':self.getDuration(), 'isPlaying':self.isPlaying(), 'formatList':self.getFormatList()}
+		return {'position':self.getPosition(), 'duration':self.getDuration(), 'isPlaying':self.isPlaying(), 'isPaused':self.isPaused()}
 
 	def setPosition(self, newPos):
-		# If the video is not started, start it and jump to the position
-		if self.isStarted() or self.playPause():
-			self.omxProcess.set_position(newPos)
-			return True
-		else:
+		try:
+			# If the video is not started, start it and jump to the position
+			if self.isStarted() or self.playPause():
+				self.omxProcess.set_position(newPos)
+				return True
+			else:
+				return False
+		except:
+			self.clearPlayer()
 			return False
 
 	def getFormatList(self):
-		return self.currVideo.getFormatList() if self.currVideo else {}
+		return self.currVideo.getFormatList() if self.currVideo else []
 
 	def getFormatListItems(self):
-		if self.currVideo:
-			fl = self.currVideo.getFormatList()
-			return fl.items() if fl else []
-		else:
-			return []
+		return [(fid, f['name']) for fid, f in enumerate(self.getFormatList())]
+
+	def clearPlayer(self):
+		if self.omxProcess:
+			try:
+				self.omxProcess.quit()
+			except:
+				pass
+		self.omxProcess = None
 

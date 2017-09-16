@@ -29,7 +29,9 @@ def ProcessPathURL(urlPath, name, pl = None, changeCallBack = None, lock = None,
 	# Determine if the urlPath is an URL or a local path
 	urlre = re.compile('^https?://.+')
 	if urlre.match(urlPath):
-		return ProcessYoutubeURL(urlPath, name, pl, changeCallBack, lock)
+		with lock:
+			defaultPl = Parameters.get().defaultPlaylist if not pl else pl
+		return ProcessYoutubeURL(urlPath, name, defaultPl, changeCallBack, lock)
 	else:
 		return ProcessPath(urlPath, name, pl, changeCallBack, lock, slow = slow)
 
@@ -47,7 +49,8 @@ def ProcessPath(path, name, pl = None, changeCallBack = None, lock = None, first
 
 			with lock:
 				if Playlist.select().where(Playlist.URL == dirpath).count() == 0:
-					currPl = Playlist.create(URL = dirpath, name = os.path.basename(dirpath) if pl else name, parent = pl, totNbVids = len(vidFileMatch), depth = pl.depth + 1 if pl else 0)
+					currPl = Playlist.create(URL = dirpath, name = os.path.basename(dirpath) if pl else name, parent = pl, depth = pl.depth + 1 if pl else 0)
+					currPl.addedTotVideos(len(vidFileMatch))
 				else:
 					currPl = Playlist.get(Playlist.URL == dirpath)
 			allPl.append(currPl)
@@ -65,11 +68,10 @@ def ProcessPath(path, name, pl = None, changeCallBack = None, lock = None, first
 					# TODO Check ffprobe or some related stuff to get info about videos
 					dur = 10
 					res = 'blaxbli'
-					okFormats = {-1: {'name':res, 'url':vidPath}}
+					okFormats = [{'name':'Auto', 'url':''},{'name':res, 'url':vidPath}]
 					with lock:
 						Video.create(origURL = vidPath, path = vidPath, title = vfm.group(1), duration=dur, playlist = currPl, okFormatsList = json.dumps(okFormats))
-						currPl.nbVids += 1
-						currPl.save()
+						currPl.addedVideos(1)
 					changeCallBack(currPl)
 				if slow:
 					sleep(sleepTime)
@@ -79,9 +81,8 @@ def ProcessPath(path, name, pl = None, changeCallBack = None, lock = None, first
 				nbOrphans = Video.select().where((Video.playlist == currPl) & ~(Video.path << allVidPaths)).count()
 				if nbOrphans > 0:
 					Video.delete().where((Video.playlist == currPl) & ~(Video.path << allVidPaths)).execute()
-					currPl.totNbVids -= nbOrphans
-					currPl.nbVids = currPl.totNbVids
-					currPl.save()
+					currPl.addedTotVideos(-nbOrphans)
+					currPl.addedVideos(-nbOrphans)
 					changeCallBack(currPl)
 
 			# Add subdirectories
@@ -90,7 +91,7 @@ def ProcessPath(path, name, pl = None, changeCallBack = None, lock = None, first
 
 			# Delete empty playlists
 			with lock:
-				if currPl.getTotalNbVids() == 0:
+				if currPl.totAllNbVids == 0:
 					Playlist.delete().where(Playlist.id == currPl.id).execute()
 					currPl = None
 				else:
@@ -142,14 +143,18 @@ def ProcessYoutubeURL(url, name, pl=None, changeCallBack=None, lock = None, vid=
 			return Video.get(Video.origURL == url)
 
 # Inserts the playlist and its videos in the database
-def InsertYtPlaylist(infos, url, name, existPl = None, changeCallBack=None, lock = None):#, progressQueue = None):
+def InsertYtPlaylist(infos, url, name, existPl = None, changeCallBack=None, lock = None):
 	with lock:
 		if existPl:
 			pl = existPl
-			pl.totNbVids = len(infos)
-			pl.save()
+			pl.addedTotVideos(-pl.totNbVids)
+			pl.addedVideos(-pl.nbVids)
+			pl.addedTotVideos(len(infos))
+			#pl.totNbVids = len(infos)
+			#pl.save()
 		else:
-			pl = Playlist.create(URL = url, name = name, totNbVids = len(infos))
+			pl = Playlist.create(URL = url, name = name)
+			pl.addedTotVideos(len(infos))
 	changeCallBack(pl)
 
 	changed = False
@@ -158,25 +163,26 @@ def InsertYtPlaylist(infos, url, name, existPl = None, changeCallBack=None, lock
 			vidDidntExist = (Video.select().where(Video.origURL == info['url']).count() == 0)
 			changed = changed or vidDidntExist
 			vid = None if vidDidntExist else Video.get(Video.origURL == info['url'])
-		ret = ProcessYoutubeURL(info['url'], '', pl, changeCallBack, lock, vid)#, progressQueue)
 		if vidDidntExist:
+			ProcessYoutubeURL(info['url'], '', pl, changeCallBack, lock, vid)
+		else:
 			with lock:
-				pl.nbVids += 1
-				pl.save()
+				pl.addedVideos(1)
 		changeCallBack(pl)
 
 	# Remove videos that were deleted from the playlist
+	# TODO Call the correct functions for computing nb of videos
 	if existPl:
 		allUrls = [info['url'] for info in infos]
 		with lock:
-			if Video.select().where((Video.playlist == existPl) & ~(Video.origURL << allUrls)).count() > 0:
+			nbOrphans = Video.select().where((Video.playlist == existPl) & ~(Video.origURL << allUrls)).count()
+			if nbOrphans > 0:
 				changed = True
 				Video.delete().where((Video.playlist == existPl) & ~(Video.origURL << allUrls)).execute()
+				#existPl.addedTotVideos(-nbOrphans)
+				#existPl.addedVideos(-nbOrphans)
 		# If the playlist was changed, mark it as changed
 		if changed and changeCallBack:
-			with lock:
-				pl.nbVids = pl.totNbVids
-				pl.save()
 			changeCallBack(existPl)
 	with lock:
 		pl.justCreated = False
@@ -194,14 +200,16 @@ def InsertYtVideo(infos, origURL, pl = None, lock = None, vid = None):
 	url = infos['webpage_url']
 	vidId = infos['id']
 	# Handle the format list
-	p = re.compile('.*[^0-9]+(\d+x\d+).*');
-	okFormats = {f['format_id']: {'name':p.match(f['format']).group(1),'url':f['url']}  for f in infos['formats'] if ('only' not in f['format']) and ('video' not in f['format'])}
-	okFormats[-1] = {'name':'Auto', 'url':''}
+	p = re.compile('.*[^0-9]+((\d+)x\d+).*');
+	formats = [f for f in infos['formats'] if ('only' not in f['format']) and ('video' not in f['format'])]
+	okFormats = [{'name':'Auto', 'url':''}]
+	for f in sorted(formats, key=lambda f:int(p.match(f['format']).group(2)), reverse=True):
+		okFormats.append({'name':p.match(f['format']).group(1),'url':f['url']})
 	# Expiration time for the streams
 	p2 = re.compile('.*expire=(\d+)&.*')
 	exp = None
 	if len(okFormats) > 0:
-		for fid, f in okFormats.items():
+		for f in okFormats:
 			m = p2.match(f['url'])
 			if m:
 				break
@@ -219,6 +227,10 @@ def InsertYtVideo(infos, origURL, pl = None, lock = None, vid = None):
 	else:
 		# Add the video to the database
 		with lock:
+			# Update video counters
+			pl.addedVideos(1)
+			if pl.id == Parameters.get().defaultPlaylist.id:
+				pl.addedTotVideos(1)
 			return Video.create(videoId = vidId, origURL = origURL, URL = url, title = infos['title'], description = descr, duration = infos['duration'], thumbnailURL = infos['thumbnails'][0]['url'], playlist = pl, infos = json.dumps(infos), okFormatsList = json.dumps(okFormats), expires = exp)
 
 ###################
@@ -231,6 +243,8 @@ class Playlist(BaseModel):
 	justCreated = BooleanField(default=True)
 	nbVids = IntegerField(default = 0)
 	totNbVids = IntegerField(default = 0)
+	allNbVids = IntegerField(default = 0)
+	totAllNbVids = IntegerField(default = 0)
 	depth = IntegerField(default = 0)
 
 	def matchesSearch(self, searchStr):
@@ -248,11 +262,27 @@ class Playlist(BaseModel):
 	def getAllVideosFiltered(self, searchStr):
 		return [vid for vid in self.getAllVideos() if vid.matchesSearch(searchStr)]
 
-	def getNbVids(self):
-		return self.nbVids + sum([c.getNbVids() for c in self.children])
+	#def getNbVids(self):
+	#	return self.nbVids + sum([c.getNbVids() for c in self.children])
 
-	def getTotalNbVids(self):
-		return self.totNbVids + sum([c.getTotalNbVids() for c in self.children])
+	#def getTotalNbVids(self):
+	#	return self.totNbVids + sum([c.getTotalNbVids() for c in self.children])
+
+	def addedVideos(self, nb, first = True):
+		if first:
+			self.nbVids += nb
+		self.allNbVids += nb
+		self.save()
+		if self.parent:
+			self.parent.addedVideos(nb, first = False)
+
+	def addedTotVideos(self, nb, first = True):
+		if first:
+			self.totNbVids += nb
+		self.totAllNbVids += nb
+		self.save()
+		if self.parent:
+			self.parent.addedTotVideos(nb, first = False)
 
 	def getAllChildren(self):
 		res = [pl for pl in self.children]
@@ -284,7 +314,7 @@ class Video(BaseModel):
 	def getRessourcePath(self, formatId):
 		if self.okFormatsList:
 			ofl = json.loads(self.okFormatsList)
-			return ofl[formatId]['url'] if formatId in ofl else ''
+			return ofl[formatId]['url'] if formatId < len(ofl) else ''
 		elif self.path:
 			return self.path
 		else:
@@ -293,20 +323,23 @@ class Video(BaseModel):
 	def getFormat(self, formatId):
 		if self.okFormatsList:
 			ofl = json.loads(self.okFormatsList)
-			return ofl[formatId] if formatId in ofl else None
+			return ofl[formatId] if formatId < len(ofl) else None
 		else:
 			return None
 
 	def removeFormat(self, formatId):
-		self.okFormatsList = json.dumps({fid: elems for fid, elems in json.loads(self.okFormatsList).items() if fid != formatId})
+		#self.okFormatsList = json.dumps({fid: elems for fid, elems in json.loads(self.okFormatsList).items() if fid != formatId})
+		ofl = json.loads(self.okFormatsList)
+		self.okFormatsList = json.dumps(ofl[0:formatId]+ofl[formatId+1:] if 0 < formatId < len(ofl) else ofl)
 		self.save()
 
 	def getFormatList(self):
 		if self.okFormatsList:
 			ofl = json.loads(self.okFormatsList)
-			return {ft['name']:fid for fid, ft in ofl.items()}
+			return ofl
+			#return {ft['name']:fid for fid, ft in enumerate(ofl)}
 		else:
-			return None
+			return {}
 
 	def getDescription(self):
 		return Markup(self.description)
@@ -331,7 +364,7 @@ class Parameters(BaseModel):
 db.create_tables([Parameters, Playlist, Video], safe=True)
 ## TMP
 if Playlist.select().count() == 0:
-	pl = Playlist.create(URL = '', name = 'Default Playlist')
+	pl = Playlist.create(URL = '', name = 'Default Playlist', justCreated = False)
 if Parameters.select().count() == 0:
 	Parameters.create(ytUsername = 'johnsmith652938@gmail.com', ytPassword='EED9PlMtBnDamJ6', cookiesPath = 'cookies.txt', extensions = 'mkv avi mpg mp4 mpeg', defaultPlaylist = pl)
 

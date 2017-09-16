@@ -3,8 +3,11 @@
 {%- for pl in appli.getRessources() -%}
 	<a href="#" class="RessourceLink" value="{{ pl.id }}" style="margin-left:{{ pl.depth * 5 }}px;">
 	<div class="ProgressBar RessourceProgressBar" id="Ressource{{ pl.id }}PB" style="width:calc(100% - {{ pl.depth * 5 }}px);">
-		<span>{{ pl.name }} ({{ '%s / %s' % (pl.getNbVids(), pl.getTotalNbVids()) }})</span>
-		<div class="ProgressPlayed RessourceProgressPlayed" id="Ressource{{ pl.id }}PP" style="width:{{ pl.getNbVids() / (pl.getTotalNbVids() if pl.getTotalNbVids() > 0 else 1) * 100 }}%;"> </div>
+		<span>{{ pl.name }} ({{ '%s / %s' % (pl.allNbVids, pl.totAllNbVids) }})</span>
+		{%- if not pl.justCreated -%}
+		<button class="RefreshButton" id="{{ pl.id }}"><img src="static/img/Refresh.png"/></button>
+		{%- endif -%}
+		<div class="ProgressPlayed RessourceProgressPlayed" id="Ressource{{ pl.id }}PP" style="width:{{ pl.allNbVids / (pl.totAllNbVids if pl.totAllNbVids > 0 else 1) * 100 }}%;"> </div>
 	</div>
 	</a>
 {%- endfor -%}
