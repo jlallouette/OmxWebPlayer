@@ -1,14 +1,19 @@
 {# playlist.html #}
 <div class="playlist">
 {%- if appli.currPlaylist -%}
+	<div style="float:right;">
+		<input type="checkbox" id="alphaOrderChkbx" {{ "checked" if appli.alphaOrdering else "" }}> 
+		<label for="alphaOrderChkbx">Alphabetical ordering </label><br/>
+	</div>
 	<span class="BlockName">{{ appli.currPlaylist.name }}</span><br/>
-	{%- for vid in appli.currPlaylist.getAllVideosFiltered(appli.searchFilterStr) -%}
+	{%- for vid in appli.currPlaylist.getAllVideosFiltered(appli.searchFilterStr, appli.alphaOrdering) -%}
 	<div class="PlaylistVideo">
 		<div class="PlaylistThumbnail">
 			<img class="PlaylistImg" src="{{ vid.getThumbnail() }}"/>
 			<button class="OverlayButton PlaylistVidButton" value="{{ vid.id }}" title="{{ vid.title }}"><img src="static/img/Play.png"/></button>
+			<span class="DurationSpan">{{ vid.getDurationStr() }}</span>
 		</div>
-		<div>{{ vid.title }}</div>
+		<div class="{{ 'VidTitle' + ' ViewedTitle' if vid.viewed else '' }}">{{ vid.title }}</div>
 	</div>
 	{%- endfor -%}
 {%- endif -%}

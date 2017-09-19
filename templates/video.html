@@ -2,7 +2,7 @@
 <div class="video">
 	<div><span class="ErrorBar">{{ ErrorStr }}</span></div>
 {% if appli.player.currVideo %}
-	<h1>{{ appli.player.currVideo.title }}</h1>
+	<div class="BlockName">{{ appli.player.currVideo.title }}</div>
 	<div class="VideoInt">
 		<div class="Thumbnail">
 			<img src="{{ appli.player.currVideo.getThumbnail() }}"/>
@@ -21,13 +21,33 @@
 			<button class="PauseButton"><img src="static/img/Pause.png"/></button>
 			<button class="PlayButton"><img src="static/img/Play.png"/></button>
 			<button class="StopButton"><img src="static/img/Stop.png"/></button>
-			<select class="FormatSelector">
-			{% for formatId, format in appli.player.getFormatListItems() %}
-				<option value="{{ formatId }}" {% if appli.player.formatId == formatId %}selected{% endif %} >
-				{{ format }}
-				</option>
-			{% endfor %}
-			</select>
+			{% if appli.player.hasVideoStreams() %}
+				<select class="Selector" id="Video">
+				{% for formatId, format in appli.player.getFormatListItems() %}
+					<option value="{{ formatId }}" {% if appli.player.formatId == formatId %}selected{% endif %} >
+					{{ format }}
+					</option>
+				{% endfor %}
+				</select>
+			{% endif %}
+			{% if appli.player.hasAudioStreams() %}
+				<select class="Selector" id="Audio">
+				{% for audid, audstr in appli.player.getAudioStreams().items() %}
+					<option value="{{ audid }}" {% if appli.player.audioStreamId == audid %}selected{% endif %} >
+					{{ audstr }}
+					</option>
+				{% endfor %}
+				</select>
+			{% endif %}
+			{% if appli.player.hasSubtitles() %}
+				<select class="Selector" id="Subtitles">
+				{% for subid, substr in appli.player.getSubtitles().items() %}
+					<option value="{{ subid }}" {% if appli.player.subtitleId == subid %}selected{% endif %} >
+					{{ substr }}
+					</option>
+				{% endfor %}
+				</select>
+			{% endif %}
 		</div>
 	</div>
 	<div class="Description">

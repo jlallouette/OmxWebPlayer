@@ -3,7 +3,7 @@ from multiprocessing import Queue
 import json
 import datetime
 import re
-from time import sleep
+from time import sleep, time
 from flask import Markup
 from peewee import *
 import glob
@@ -39,7 +39,8 @@ def ProcessPathURL(urlPath, name, pl = None, changeCallBack = None, lock = None,
 # Creates a new playlist for each non empty subfolder 
 def ProcessPath(path, name, pl = None, changeCallBack = None, lock = None, firstCall=True, slow = False):
 	with lock:
-		extRe=re.compile('(.*?)\.(' + '|'.join(Parameters.get().extensions.split()) + ')$')
+		params = Parameters.get()
+		extRe=re.compile('(.*?)\.(' + '|'.join(params.extensions.split()) + ')$')
 		defaultPl = Parameters.get().defaultPlaylist
 		sleepTime = Parameters.get().backgroundSleepTime
 	allPl = []
@@ -65,13 +66,14 @@ def ProcessPath(path, name, pl = None, changeCallBack = None, lock = None, first
 				with lock:
 					alreadyExist = Video.select().where(Video.path == vidPath).count() > 0
 				if not alreadyExist:
-					# TODO Check ffprobe or some related stuff to get info about videos
+					# Duration, resolution etc are extracted in a separate thread
 					dur = 10
-					res = 'blaxbli'
+					res = '10x10'
 					okFormats = [{'name':'Auto', 'url':''},{'name':res, 'url':vidPath}]
 					with lock:
-						Video.create(origURL = vidPath, path = vidPath, title = vfm.group(1), duration=dur, playlist = currPl, okFormatsList = json.dumps(okFormats))
+						vid = Video.create(origURL = vidPath, path = vidPath, title = vfm.group(1), duration=dur, playlist = currPl, okFormatsList = json.dumps(okFormats), needsInfoExtract = True)
 						currPl.addedVideos(1)
+
 					changeCallBack(currPl)
 				if slow:
 					sleep(sleepTime)
@@ -256,17 +258,11 @@ class Playlist(BaseModel):
 					return True
 			return False
 
-	def getVideosFiltered(self, searchStr):
-		return [vid for vid in self.videos if vid.matchesSearch(searchStr)]
+	#def getVideosFiltered(self, searchStr):
+	#	return [vid for vid in self.videos if vid.matchesSearch(searchStr)]
 
-	def getAllVideosFiltered(self, searchStr):
-		return [vid for vid in self.getAllVideos() if vid.matchesSearch(searchStr)]
-
-	#def getNbVids(self):
-	#	return self.nbVids + sum([c.getNbVids() for c in self.children])
-
-	#def getTotalNbVids(self):
-	#	return self.totNbVids + sum([c.getTotalNbVids() for c in self.children])
+	def getAllVideosFiltered(self, searchStr, alphaOrdering = False):
+		return [vid for vid in self.getAllVideos(alphaOrdering) if vid.matchesSearch(searchStr)]
 
 	def addedVideos(self, nb, first = True):
 		if first:
@@ -290,11 +286,15 @@ class Playlist(BaseModel):
 			res += pl.getAllChildren()
 		return res
 
-	def getAllVideos(self):
+	def getAllVideos(self, alphaOrdering = False):
 		res = [vid for vid in self.videos]
 		for ch in self.children:
 			res += ch.getAllVideos()
-		return res
+		return sorted(res, key = lambda v: v.title) if alphaOrdering else res
+
+	def getName(self):
+		maxNb = Parameters.get().maxPlNameCharacters
+		return self.name[0:maxNb] + '...' if len(self.name) > maxNb else self.name
 
 class Video(BaseModel):
 	videoId = CharField(null=True)
@@ -310,6 +310,7 @@ class Video(BaseModel):
 	path = TextField(null=True)
 	viewed = BooleanField(default = False)
 	expires = DateTimeField(null = True)
+	needsInfoExtract = BooleanField(default = False)
 
 	def getRessourcePath(self, formatId):
 		if self.okFormatsList:
@@ -328,7 +329,6 @@ class Video(BaseModel):
 			return None
 
 	def removeFormat(self, formatId):
-		#self.okFormatsList = json.dumps({fid: elems for fid, elems in json.loads(self.okFormatsList).items() if fid != formatId})
 		ofl = json.loads(self.okFormatsList)
 		self.okFormatsList = json.dumps(ofl[0:formatId]+ofl[formatId+1:] if 0 < formatId < len(ofl) else ofl)
 		self.save()
@@ -337,7 +337,6 @@ class Video(BaseModel):
 		if self.okFormatsList:
 			ofl = json.loads(self.okFormatsList)
 			return ofl
-			#return {ft['name']:fid for fid, ft in enumerate(ofl)}
 		else:
 			return {}
 
@@ -350,6 +349,18 @@ class Video(BaseModel):
 	def matchesSearch(self, searchStr):
 		return searchStr.lower() in self.title.lower()
 
+	def getDurationStr(self):
+		tot = self.duration
+		res = ''
+		res = str(tot % 60).zfill(2) + res
+		tot //= 60
+		if tot > 0:
+			res = str(tot % 60).zfill(2) + ':' + res
+			tot //= 60
+			if tot > 0:
+				res = str(tot) + ':' + res
+		return res
+
 class Parameters(BaseModel):
 	ytUsername = TextField(null=True)
 	ytPassword = TextField(null=True)
@@ -357,6 +368,11 @@ class Parameters(BaseModel):
 	extensions = TextField(null=True)
 	defaultPlaylist = ForeignKeyField(Playlist, null=True)
 	backgroundSleepTime = DoubleField(default = 1.0)
+	viewedThreshold = DoubleField(default = 0.8)
+	maxPlNameCharacters = IntegerField(default = 20)
+	thumbnailOffset = DoubleField(default = 0.25)
+	extractInfoTimeOut = DoubleField(default = 15.0)
+	dbIdTag = IntegerField()
 
 #####################################
 # Create tables if they don't exist #
@@ -366,5 +382,5 @@ db.create_tables([Parameters, Playlist, Video], safe=True)
 if Playlist.select().count() == 0:
 	pl = Playlist.create(URL = '', name = 'Default Playlist', justCreated = False)
 if Parameters.select().count() == 0:
-	Parameters.create(ytUsername = 'johnsmith652938@gmail.com', ytPassword='EED9PlMtBnDamJ6', cookiesPath = 'cookies.txt', extensions = 'mkv avi mpg mp4 mpeg', defaultPlaylist = pl)
+	Parameters.create(ytUsername = 'johnsmith652938@gmail.com', ytPassword='EED9PlMtBnDamJ6', cookiesPath = 'cookies.txt', extensions = 'mkv avi mpg mp4 mpeg', defaultPlaylist = pl, dbIdTag = int(time()))
 

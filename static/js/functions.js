@@ -89,8 +89,8 @@ function triggerSearch() {
 function sendOrder(orderName, params, resultCallBacks, ErrorFunct) {
 	$.getJSON($SCRIPT_ROOT + '/_sendOrder', Object.assign({order: orderName, updateHashes: JSON.stringify(gUpdateHashes)}, params), function(data) {
 		resultCallBacks.anyway(data)
+		updateParts(data.updatedParts);
 		if (data.result) {
-			updateParts(data.updatedParts);
 			resultCallBacks.ok(data);
 		} else {
 			displayError(ErrorFunct(data));
@@ -210,15 +210,24 @@ $(function() {
 			}}, function(d){return "Couldn't stop.";});
 		}
 	});
-	$(document).on('change', '.FormatSelector', function() {
-		var newFormat = $('.FormatSelector option:selected').text();
+	$(document).on('change', '.Selector', function() {
+		var type = $(this).attr('id');
+		var newFormat = $('.Selector#' + type + ' option:selected').text();
 		setLoading('.Thumbnail', true);
-		sendOrder('changeFormat', {formatId: $(this).val()}, {
+		sendOrder('changeFormat', {formatType: type, formatId: $(this).val()}, {
 			anyway: function(d){
 				setLoading('.Thumbnail', false);
 			}, 
 			ok: function(d){}}, 
-			function(d){return "Couldn't change the format to " + newFormat + ".";});
+			function(d){return "Couldn't change the " + type + " format to " + newFormat + ".";});
+	});
+	$(document).on('change', '#alphaOrderChkbx', function() {
+		var alphaOrdr = $(this).is(":checked")
+		setLoading('.playlist', true);
+		sendOrder('changeOrdering', {alphaOrdering: alphaOrdr}, {anyway: function(d){
+				setLoading('.playlist', false);
+			}, ok: function(d){}},
+			function(d){return "Couldn't change the ordering.";});
 	});
 	$(document).on('mouseenter', '.ProgressBar#VideoPB', function(e) {$('.ProgressBarTooltip').css('display', 'inline-block');});
 	$(document).on('mouseleave', '.ProgressBar#VideoPB', function(e) {$('.ProgressBarTooltip').css('display', 'none');});
@@ -282,5 +291,20 @@ $(function() {
 		sendOrder('refreshRessource', {ressourceId: $(this).attr('id')}, {anyway: function(d){
 			setRotateTimer(elemId, false);
 		}, ok:function(d){}}, function(d){return "Couldn't refresh ressource.";});
+	});
+
+	$('.RessourceWrapper').resizable({
+		handles: 'e',
+		minWidth: 100,
+		stop:function(event, ui) {
+			ui.element.width(((ui.element.width()/ui.element.parent().width())*100)+'%');
+		}
+	});
+	$('.videoWrapperInner').resizable({
+		handles: 's',
+		minHeight: 100,
+		stop:function(event, ui) {
+			ui.element.height(((ui.element.height()/ui.element.parent().parent().height())*100)+'%');
+		}
 	});
 });

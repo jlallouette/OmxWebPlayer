@@ -5,19 +5,28 @@ import copy
 from video import *
 
 class Player:
-	def __init__(self):
+	def __init__(self, appli):
 		self.currVideo = None
 		self.formatId = 0
+		self.subtitleId = -1
+		self.audioStreamId = 0
 		self.omxProcess = None
+		self.currTotViewed = 0
+		self.lastPos = 0
+		self.appli = appli
 	
 	def LoadVideo(self, video):
 		if self.isStarted():
 			self.stop()
 		self.currVideo = video
 		self.formatId = 0
+		self.subtitleId = -1
+		self.audioStreamId = 0
+		self.currTotViewed = 0
+		self.lastPos = 0
 
 	# Set the format of the video
-	def setFormat(self, formatId):
+	def setVideoFormat(self, formatId):
 		if self.currVideo and formatId != self.formatId:
 			# If the video has this format
 			if self.currVideo.getFormat(formatId):
@@ -35,6 +44,41 @@ class Player:
 						return False
 				return True
 		return False
+
+	# Set a different audio stream
+	def setAudioFormat(self, formatId):
+		try:
+			if self.isStarted():
+				if self.omxProcess.select_audio(formatId):
+					self.audioStreamId = formatId
+					return True
+				else:
+					return False
+			else:
+				return False
+		except:
+			self.clearPlayer()
+			return False
+
+	# Set a subtitle track
+	def setSubtitlesFormat(self, formatId):
+		try:
+			if self.isStarted():
+				if formatId > -1:
+					self.omxProcess.show_subtitles()
+					if self.omxProcess.select_subtitle(formatId):
+						self.subtitleId = formatId
+						return True
+					else:
+						return False
+				else:
+					self.subtitleId = -1
+					return self.omxProcess.hide_subtitles()
+			else:
+				return False
+		except:
+			self.clearPlayer()
+			return False
 
 	# Tries to play or pause the current video
 	def playPause(self):
@@ -59,11 +103,6 @@ class Player:
 						if self.tryPlayingFormat(fid):
 							ok = True
 							break
-					# TODO sort by resolution
-					#for name, fid in self.currVideo.getFormatList().items():
-					#	if fid != 0 and self.tryPlayingFormat(fid):
-					#		ok = True
-					#		break
 				return ok
 		return False
 
@@ -96,7 +135,7 @@ class Player:
 			self.clearPlayer()
 			print(str(e), str(self.currVideo.getFormatList()))
 		# Handle the case in which the format couldn't be played
-		self.currVideo.removeFormat(formatId)
+		#self.currVideo.removeFormat(formatId)
 		self.stop()
 		self.formatId = 0
 		return False
@@ -141,8 +180,66 @@ class Player:
 			self.clearPlayer()
 			return 1
 
+	def getSubtitles(self):
+		subs = {-1: 'None'}
+		try:
+			if self.isStarted():
+				for substr in self.omxProcess.list_subtitles():
+					idx, lng, name, cdc, actv = substr.split(':')
+					subs[idx] = lng + (('-' + name) if len(name) > 0 else '')
+					if actv:
+						self.subtitleId = idx
+			return subs
+		except:
+			self.clearPlayer()
+			return subs
+
+	def hasSubtitles(self):
+		try:
+			return self.isStarted() and len(self.omxProcess.list_subtitles()) > 0
+		except:
+			self.clearPlayer()
+			return False
+
+	def getAudioStreams(self):
+		auds = {}
+		try:
+			if self.isStarted():
+				for audstr in self.omxProcess.list_audio():
+					idx, lng, name, cdc, actv = audstr.split(':')
+					auds[idx] = lng + (('-' + name) if len(name) > 0 else '')
+					if actv:
+						self.audioStreamId = idx
+			return auds
+		except:
+			self.clearPlayer()
+			return auds
+
+	def hasAudioStreams(self):
+		try:
+			return self.isStarted() and len(self.omxProcess.list_audio()) > 1
+		except:
+			self.clearPlayer()
+			return False
+
+	def hasVideoStreams(self):
+		if self.currVideo:
+			okFormatList = json.loads(self.currVideo.okFormatsList)
+			return len(okFormatList) > 2
+		else:
+			return False
+
 	def getStatus(self):
-		return {'position':self.getPosition(), 'duration':self.getDuration(), 'isPlaying':self.isPlaying(), 'isPaused':self.isPaused()}
+		currPos = self.getPosition()
+		dur = self.getDuration()
+		self.currTotViewed += currPos - self.lastPos
+		self.lastPos = currPos
+		with self.appli.threadLock:
+			if self.currTotViewed / dur > Parameters.get().viewedThreshold:
+				self.currVideo.viewed = True
+				self.currVideo.save()
+				self.appli.updatePart('ressources')
+		return {'position':currPos, 'duration':dur, 'isPlaying':self.isPlaying(), 'isPaused':self.isPaused()}
 
 	def setPosition(self, newPos):
 		try:

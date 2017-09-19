@@ -3,41 +3,53 @@
 <html>
 	<head>
 	<link href="{{cssPath}}" rel="stylesheet">
+	<link rel="stylesheet" type="text/css" href="//code.jquery.com/ui/1.9.2/themes/base/jquery-ui.css">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	</head>
 	<body>
 		<div class="Content">
-			<div class="RessourcesBar">
-				<span class="BlockName">Ressource Explorer</span><br/>
-				<button class="InterfaceButton" id="InterfaceAddBtn"><img src="static/img/Add.png"/></button>
-				<button class="InterfaceButton" id="InterfaceSearchBtn"><img src="static/img/Search.png"/></button>
-				<div class="Dialog HideOnClickoutDialog" id="AddRessourceDiag">
-					<table>
-					<tr><td>Ressource Name:</td><td><input type="text" id="ressourceName" value="{{ appli.getDefaultRessourceName() }}"/></td></tr>
-					<tr><td>Ressource URL/Path:</td><td><input type="text" id="ressourceUrlPath"/></td></tr>
-					<tr><td></td><td><button id="RessourceAddBtn">Add</button></td></tr>
-					</table>
-					<div class="LoadingIndicator">
-						<img src="static/img/loading.gif"/>
+			<div class="RessourceWrapper" style="display:table-cell;width:250px">
+				<div class="RessourcesBar">
+					<span class="BlockName">Ressource Explorer</span><br/>
+					<button class="InterfaceButton" id="InterfaceAddBtn"><img src="static/img/Add.png"/></button>
+					<button class="InterfaceButton" id="InterfaceSearchBtn"><img src="static/img/Search.png"/></button>
+					<div class="Dialog HideOnClickoutDialog" id="AddRessourceDiag">
+						<table>
+						<tr><td>Ressource Name:</td><td><input type="text" id="ressourceName" value="{{ appli.getDefaultRessourceName() }}"/></td></tr>
+						<tr><td>Ressource URL/Path:</td><td><input type="text" id="ressourceUrlPath"/></td></tr>
+						<tr><td></td><td><button id="RessourceAddBtn">Add</button></td></tr>
+						</table>
+						<div class="LoadingIndicator">
+							<img src="static/img/loading.gif"/>
+						</div>
 					</div>
-				</div>
-				<div class="Dialog HideOnClickoutDialog" id="SearchDiag">
-					<table>
-					<tr><td>Search:</td><td><input type="text" id="searchString"/></td></tr>
-					</table>
-					<div class="LoadingIndicator">
-						<img src="static/img/loading.gif"/>
+					<div class="Dialog HideOnClickoutDialog" id="SearchDiag">
+						<table>
+						<tr><td>Search:</td><td><input type="text" id="searchString"/></td></tr>
+						</table>
+						<div class="LoadingIndicator">
+							<img src="static/img/loading.gif"/>
+						</div>
 					</div>
+					{%- include "ressources.html" -%}
 				</div>
-				{%- include "ressources.html" -%}
 			</div>
 			<div class="PlayListVideo">
-				{%- include "video.html" -%}
-				{%- include "playlist.html" -%}
+				<div class="plVidInner" style="display:table;width:100%;height:100%;">
+					<div class="videoWrapper" style="display:table-row;">
+						<div class="videoWrapperInner" style="display:table-cell;height:65vh;">
+							{%- include "video.html" -%}
+						</div>
+					</div>
+					<div class="playlistWrapper" style="display:table-row;">
+						{%- include "playlist.html" -%}
+					</div>
+				</div>
 			</div>
 		</div>
 	</body>
 	<script src="static/js/jquery-1.11.3.min.js"></script>
+	<script src="static/js/jquery-ui.min.js"></script>
 	<script type=text/javascript>
 		$SCRIPT_ROOT = {{ request.script_root|tojson|safe }};
 	</script>

@@ -1,5 +1,7 @@
 from jinja2 import Environment, FileSystemLoader
 import threading
+import multiprocessing
+import av
 
 from player import *
 
@@ -15,6 +17,69 @@ from player import *
 #			sleep(5)
 #		sleep(5)
 
+def extractInfos(vid, q, offstrt, dbIdTag):
+	try:
+		container = av.open(vid.path)
+		timeBase = 1000000
+		dur = container.duration // timeBase
+		q.put(dur)
+		offset = container.duration * offstrt
+		container.seek(int(offset))
+		frame = next(container.decode(video=0))
+		res = str(frame.width) + 'x' + str(frame.height)
+		q.put(res)
+		thumbPath = 'static/thumbnails/' + str(dbIdTag) + '-' + str(vid.id) + '.jpg'
+		frame.to_image().save(thumbPath)
+		q.put(thumbPath)
+	except:
+		pass
+	# Save the frame
+	#with lock:
+	#	ofl = json.loads(vid.okFormatsList)
+	#	ofl[1]['name'] = res
+	#	vid.okFormatsList = json.dumps(ofl)
+	#	vid.save()
+	#if frame:
+	#	thumbPath = 'static/thumbnails/' + str(vid.id) + '.jpg'
+	#	frame.to_image().save(thumbPath)
+	#	q.put(thumbPath)
+		#with lock:
+		#	vid.thumbnailURL = thumbPath
+		#	vid.save()
+
+def extractInfosFromFiles(lock, appli):
+	while True:
+		with lock:
+			params = Parameters.get()
+		try:
+			with lock:
+				vid = Video.get(Video.needsInfoExtract == True)
+			print('treating vid ', vid.id, vid.path)
+			# Getting duration, resolution and thumbnail from the file
+			q = multiprocessing.Queue()
+			functThread = multiprocessing.Process(target = extractInfos, args = (vid, q, params.thumbnailOffset, params.dbIdTag,))
+			functThread.start()
+			functThread.join(params.extractInfoTimeOut)
+			if functThread.is_alive():
+				functThread.terminate()
+				print('Terminated !')
+			else:
+				print('Joined!')
+			with lock:
+				try:
+					vid.duration = q.get(False)
+					ofl = json.loads(vid.okFormatsList)
+					ofl[1]['name'] = q.get(False)
+					vid.okFormatsList = json.dumps(ofl)
+					vid.thumbnailURL = q.get(False)
+				except:
+					pass
+				vid.needsInfoExtract = False
+				vid.save()
+			sleep(0.5)
+		except:
+			sleep(1)
+
 class UpdateData:
 	def __init__(self, temp, hsh):
 		self.updateHash = hsh
@@ -23,9 +88,10 @@ class UpdateData:
 class Application:
 	def __init__(self):
 		self.currPlaylist = None
-		self.player = Player()
+		self.player = Player(self)
 
 		self.searchFilterStr = ''
+		self.alphaOrdering = False
 		self.nbUpdating = 0
 
 		self.threadLock = threading.RLock()
@@ -35,6 +101,8 @@ class Application:
 		self.updateData = {p:UpdateData(env.get_template(p+'.html'),0) for p in ['playlist', 'video', 'ressources']}
 
 		# Launch the playlist updater thread
+		self.infoExtractThread = threading.Thread(target = extractInfosFromFiles, args = (self.threadLock, self,), daemon = True)
+		self.infoExtractThread.start()
 		#self.playlistUpdtThread = threading.Thread(target = updatePlaylists, args = (self.threadLock, self,))
 		#self.playlistUpdtThread.daemon = True
 		#self.playlistUpdtThread.start()
@@ -83,9 +151,16 @@ class Application:
 		self.updatePart('video')
 		return self.player.playPause()
 
-	def setFormat(self, formatId):
+	def setFormat(self, formatType, formatId):
 		self.updatePart('video')
-		return self.player.setFormat(formatId)
+		if formatType == 'Video':
+			return self.player.setVideoFormat(formatId)
+		elif formatType == 'Audio':
+			return self.player.setAudioFormat(formatId)
+		elif formatType == 'Subtitles':
+			return self.player.setSubtitlesFormat(formatId)
+		else:
+			return False
 
 	def searchFilter(self, searchStr):
 		self.searchFilterStr = searchStr
@@ -98,11 +173,10 @@ class Application:
 			self.nbUpdating += 1;
 			with self.threadLock:
 				pl = Playlist.get(Playlist.id == plId)
-			print('Refreshing playlist ' + pl.name)
 			ret = ProcessPathURL(pl.URL, pl.name, changeCallBack = self.playlistUpdated, lock=self.threadLock)
 			self.updatePart('ressources')
 			self.nbUpdating -= 1;
-			return ret is not None
+			return True
 		except:
 			self.nbUpdating -= 1;
 			return False
@@ -116,7 +190,6 @@ class Application:
 		if self.currPlaylist and pl.id == self.currPlaylist.id:
 			self.updatePart('playlist')
 		self.updatePart('ressources')
-		print('callback!')
 
 	# Signals a change in a part of the application
 	def updatePart(self, name):
@@ -130,7 +203,8 @@ class Application:
 				roots = [pl for pl in Playlist.select().where(Playlist.parent.is_null())]
 				curRoot = []
 				if self.currPlaylist:
-					curRoot = [pl for pl in self.currPlaylist.children] + [self.currPlaylist]
+					curPl = Playlist.get(Playlist.id == self.currPlaylist.id)
+					curRoot = [pl for pl in curPl.children] + [curPl]
 					while curRoot[-1].parent:
 						curRoot.append(curRoot[-1].parent)
 			res = []
@@ -162,4 +236,9 @@ class Application:
 		with self.threadLock:
 			nbpl = Playlist.select().count()
 		return 'Ressource_' + str(nbpl + 1)
+
+	def setOrdering(self, alphaOrdr):
+		self.alphaOrdering = alphaOrdr
+		self.updatePart('playlist')
+		return True
 

@@ -43,9 +43,14 @@ def sendOrder():
 	elif order == 'stop':
 		res = jsonify(result = appli.player.stop())
 	elif order == 'changeFormat':
+		formatType = request.args.get('formatType', '', str)
 		formatId = request.args.get('formatId', '0', int)
-		ok = appli.setFormat(formatId)
-		res = jsonify(result = ok)
+		ok = appli.setFormat(formatType, formatId)
+		res = jsonify(result = ok, updatedParts = appli.getUpdatedParts(oldHashes))
+	elif order == 'changeOrdering':
+		alphaOrdering = request.args.get('alphaOrdering', '', str)
+		ok = appli.setOrdering(alphaOrdering == 'true')
+		res = jsonify(result = ok, updatedParts = appli.getUpdatedParts(oldHashes))
 	elif order == 'changePos':
 		relPos = request.args.get('relPos', 0, type=float)
 		res = jsonify(result=appli.player.setPosition(relPos * appli.player.getDuration()), position=appli.player.getPosition(), duration=appli.player.getDuration(), isPlaying = appli.player.isPlaying())
