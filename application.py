@@ -92,6 +92,7 @@ class Application:
 
 		self.searchFilterStr = ''
 		self.alphaOrdering = False
+		self.hideViewed = False
 		self.nbUpdating = 0
 
 		self.threadLock = threading.RLock()
@@ -150,6 +151,16 @@ class Application:
 	def playPause(self):
 		self.updatePart('video')
 		return self.player.playPause()
+
+	def goBack(self):
+		with self.threadLock:
+			dur = Parameters.get().arrowKeyMoveDuration
+		return self.player.setPosition(self.player.getPosition() - dur)
+
+	def goForward(self):
+		with self.threadLock:
+			dur = Parameters.get().arrowKeyMoveDuration
+		return self.player.setPosition(self.player.getPosition() + dur)
 
 	def setFormat(self, formatType, formatId):
 		self.updatePart('video')
@@ -237,8 +248,29 @@ class Application:
 			nbpl = Playlist.select().count()
 		return 'Ressource_' + str(nbpl + 1)
 
+	# Sets whether he videos in the playlist are ordered alphabetically
 	def setOrdering(self, alphaOrdr):
 		self.alphaOrdering = alphaOrdr
 		self.updatePart('playlist')
 		return True
+
+	# Set whether viewed videos are displayed
+	def setHideViewed(self, hideVwd):
+		self.hideViewed = hideVwd
+		self.updatePart('playlist')
+		return True
+
+	def getParametersList(self):
+		with self.threadLock:
+			return Parameters.get().getAdjustableParameters()
+
+	def setParameters(self, params):
+		ok = True
+		for cat, lst in self.getParametersList().items():
+			for item in lst:
+				with self.threadLock:
+					ok = ok and item.setValue(params.get(item.name, '', type=str))
+					if not ok:
+						break
+		return ok
 

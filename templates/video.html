@@ -18,8 +18,8 @@
 			<div class="ProgressPlayed" id="VideoPP"> </div>
 		</div>
 		<div class="VideoControlBar">
-			<button class="PauseButton"><img src="static/img/Pause.png"/></button>
-			<button class="PlayButton"><img src="static/img/Play.png"/></button>
+			<button class="PauseButton" {{'style="display:none;"' if not appli.player.isPlaying() else ''}}><img src="static/img/Pause.png"/></button>
+			<button class="PlayButton" {{'style="display:none;"' if appli.player.isPlaying() else ''}}><img src="static/img/Play.png"/></button>
 			<button class="StopButton"><img src="static/img/Stop.png"/></button>
 			{% if appli.player.hasVideoStreams() %}
 				<select class="Selector" id="Video">
@@ -51,8 +51,10 @@
 		</div>
 	</div>
 	<div class="Description">
+	{%- if appli.player.currVideo.description %}
 	<h2>Description</h2>
 	<p>{{ appli.player.currVideo.getDescription() }}</p>
+	{%- endif %}
 	</div>
 {% endif %}
 	<div class="LoadingIndicator">

@@ -14,6 +14,7 @@ class Player:
 		self.currTotViewed = 0
 		self.lastPos = 0
 		self.appli = appli
+		self.wasPlaying = False
 	
 	def LoadVideo(self, video):
 		if self.isStarted():
@@ -24,6 +25,7 @@ class Player:
 		self.audioStreamId = 0
 		self.currTotViewed = 0
 		self.lastPos = 0
+		self.wasPlaying = False
 
 	# Set the format of the video
 	def setVideoFormat(self, formatId):
@@ -33,6 +35,7 @@ class Player:
 				oldFormat = self.formatId
 				self.formatId = formatId
 				if self.isStarted():
+					self.wasPlaying = False
 					oldPos = self.getPosition()
 					wasPlaying = self.isPlaying()
 					# Try to play the new format but fallback on the previous one if it fails
@@ -107,6 +110,7 @@ class Player:
 		return False
 
 	def stop(self):
+		self.wasPlaying = False
 		try:
 			if self.omxProcess:
 				self.omxProcess.quit()
@@ -135,7 +139,6 @@ class Player:
 			self.clearPlayer()
 			print(str(e), str(self.currVideo.getFormatList()))
 		# Handle the case in which the format couldn't be played
-		#self.currVideo.removeFormat(formatId)
 		self.stop()
 		self.formatId = 0
 		return False
@@ -230,16 +233,26 @@ class Player:
 			return False
 
 	def getStatus(self):
+		isPlaying = self.isPlaying()
+		isPaused = self.isPaused()
 		currPos = self.getPosition()
 		dur = self.getDuration()
-		self.currTotViewed += currPos - self.lastPos
-		self.lastPos = currPos
-		with self.appli.threadLock:
-			if self.currTotViewed / dur > Parameters.get().viewedThreshold:
-				self.currVideo.viewed = True
-				self.currVideo.save()
-				self.appli.updatePart('ressources')
-		return {'position':currPos, 'duration':dur, 'isPlaying':self.isPlaying(), 'isPaused':self.isPaused()}
+		if isPlaying or isPaused:
+			self.wasPlaying = True
+			self.currTotViewed += currPos - self.lastPos
+			self.lastPos = currPos
+			with self.appli.threadLock:
+				if self.currTotViewed / dur > Parameters.get().viewedThreshold:
+					self.currVideo.viewed = True
+					self.currVideo.save()
+					self.appli.updatePart('playlist')
+		else:
+			with self.appli.threadLock:
+				pt = Parameters.get().autoRestartPosThresh
+			if self.wasPlaying and pt < self.lastPos < self.getDuration() - pt:
+				self.tryPlayingFormat(self.formatId)
+				self.setPosition(self.lastPos)
+		return {'position':currPos, 'duration':dur, 'isPlaying':isPlaying, 'isPaused':isPaused}
 
 	def setPosition(self, newPos):
 		try:

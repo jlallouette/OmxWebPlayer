@@ -8,15 +8,16 @@
 	</head>
 	<body>
 		<div class="Content">
-			<div class="RessourceWrapper" style="display:table-cell;width:250px">
+			<div class="RessourceWrapper" style="display:table-cell">
 				<div class="RessourcesBar">
 					<span class="BlockName">Ressource Explorer</span><br/>
 					<button class="InterfaceButton" id="InterfaceAddBtn"><img src="static/img/Add.png"/></button>
 					<button class="InterfaceButton" id="InterfaceSearchBtn"><img src="static/img/Search.png"/></button>
+					<button class="InterfaceButton" id="InterfaceParametersBtn"><img src="static/img/Parameters.png"/></button>
 					<div class="Dialog HideOnClickoutDialog" id="AddRessourceDiag">
 						<table>
-						<tr><td>Ressource Name:</td><td><input type="text" id="ressourceName" value="{{ appli.getDefaultRessourceName() }}"/></td></tr>
-						<tr><td>Ressource URL/Path:</td><td><input type="text" id="ressourceUrlPath"/></td></tr>
+						<tr><td>Ressource Name:</td><td><input type="text" id="ressourceName" value="{{ appli.getDefaultRessourceName() }}" style="width:95%;"/></td></tr>
+						<tr><td>Ressource URL/Path:</td><td><input type="text" id="ressourceUrlPath" style="width:95%;"/></td></tr>
 						<tr><td></td><td><button id="RessourceAddBtn">Add</button></td></tr>
 						</table>
 						<div class="LoadingIndicator">
@@ -25,11 +26,14 @@
 					</div>
 					<div class="Dialog HideOnClickoutDialog" id="SearchDiag">
 						<table>
-						<tr><td>Search:</td><td><input type="text" id="searchString"/></td></tr>
+						<tr><td>Search:</td><td><input type="text" id="searchString" style="width:95%;"/></td></tr>
 						</table>
 						<div class="LoadingIndicator">
 							<img src="static/img/loading.gif"/>
 						</div>
+					</div>
+					<div class="Dialog HideOnClickoutDialog" id="ParametersDiag">
+						{%- include "parameters.html" -%}
 					</div>
 					{%- include "ressources.html" -%}
 				</div>

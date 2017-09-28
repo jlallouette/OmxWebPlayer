@@ -50,7 +50,7 @@ function updateData(first) {
 	$.getJSON($SCRIPT_ROOT + '/_getStatus', {updateHashes: JSON.stringify(gUpdateHashes)}, function(data) {
 		updateParts(data.updatedParts);
 		updatePlaying(data.Status.isPlaying, data.Status.isPaused);
-		setAutoUpdate(data.Status.isPlaying || data.Status.isUpdating);
+		setAutoUpdate(data.Status.isPlaying || data.Status.isUpdating || data.Status.isPaused);
 		if (gPlaying || gPaused || first) {
 			updateProgressBar(data.Status.position, data.Status.duration);
 		}
@@ -73,9 +73,9 @@ function updateParts(updatedParts) {
 
 function setLoading(part, state) {
 	if (state) {
-		$(part + ' .LoadingIndicator').css('z-index', '1')
+		$(part + ' > .LoadingIndicator').css('z-index', '1')
 	} else {
-		$(part + ' .LoadingIndicator').css('z-index', '-1')
+		$(part + ' > .LoadingIndicator').css('z-index', '-1')
 	}
 }
 
@@ -148,7 +148,33 @@ function setRotateTimer(elemId, state) {
 
 function rotateTimer(elemId) {
 	gRotateTimers[elemId]['angle'] += 15;
-	$('.RefreshButton#'+elemId).css('transform', 'rotate(' + gRotateTimers[elemId]['angle'] + 'deg)');
+	$('.RefreshButton#'+elemId+' img').css('transform', 'rotate(' + gRotateTimers[elemId]['angle'] + 'deg)');
+}
+
+function playPause() {
+	if (!gPlaying || gPaused) {
+		updatePlaying(true);
+		setLoading('.Thumbnail', true);
+		sendOrder('play', {}, {
+			anyway: function(d){
+				updatePlaying(d.result);
+				setLoading('.Thumbnail', false);
+			}, 
+			ok: function(d){
+				setAutoUpdate(true);
+		}}, function(d){return "Couldn't play.";});
+	} else {
+		updatePlaying(false, true);
+		setLoading('.Thumbnail', true);
+		sendOrder('pause', {}, {
+			anyway: function(d){
+				updatePlaying(!d.result, d.result);
+				setLoading('.Thumbnail', false);
+			}, 
+			ok: function(d){
+				setAutoUpdate(false);
+		}}, function(d){return "Couldn't pause.";});
+	}
 }
 
 updateData(true);
@@ -161,42 +187,24 @@ $(function() {
 		var wdth = $(this).width();
 		setLoading('.Thumbnail', true);
 		updateProgressBar((e.pageX - posX)/wdth*gDuration, gDuration);
-		setAutoUpdate(false)
+		//setAutoUpdate(false)
 		sendOrder('changePos', {relPos: (e.pageX - posX)/wdth}, {
 			anyway: function(d){
 				updateProgressBar(d.position, d.duration);
 				updatePlaying(d.isPlaying, d.isPaused);
-				setAutoUpdate(d.isPlaying);
+				//setAutoUpdate(d.isPlaying || d.isPaused);
 				setLoading('.Thumbnail', false);
 			}, 
 			ok: function(d){}}, function(d){return "Couldn't jump to the specified point.";});
 	});
 	$(document).on('click', '.PlayButton', function(e) {
-		updatePlaying(true);
-		setLoading('.Thumbnail', true);
-		sendOrder('play', {}, {
-			anyway: function(d){
-				updatePlaying(d.result);
-				setLoading('.Thumbnail', false);
-			}, 
-			ok: function(d){
-				setAutoUpdate(true);
-		}}, function(d){return "Couldn't play.";});
+		playPause();
 	});
 	$(document).on('click', '.PauseButton', function(e) {
-		updatePlaying(false, true);
-		setLoading('.Thumbnail', true);
-		sendOrder('pause', {}, {
-			anyway: function(d){
-				updatePlaying(!d.result, d.result);
-				setLoading('.Thumbnail', false);
-			}, 
-			ok: function(d){
-				setAutoUpdate(false);
-		}}, function(d){return "Couldn't pause.";});
+		playPause();
 	});
 	$(document).on('click', '.StopButton', function(e) {
-		if (gPlaying) {
+		if (gPlaying || gPaused) {
 			setLoading('.Thumbnail', true);
 			updatePlaying(false);
 			updateProgressBar(0, gDuration);
@@ -229,6 +237,15 @@ $(function() {
 			}, ok: function(d){}},
 			function(d){return "Couldn't change the ordering.";});
 	});
+	$(document).on('change', '#viewedChkbx', function() {
+		var hideViewed = $(this).is(":checked")
+		setLoading('.playlist', true);
+		sendOrder('changeHideViewed', {hideViewed: hideViewed}, {anyway: function(d){
+				setLoading('.playlist', false);
+			}, ok: function(d){}},
+			function(d){return "Couldn't hide viewed videos.";});
+	});
+	
 	$(document).on('mouseenter', '.ProgressBar#VideoPB', function(e) {$('.ProgressBarTooltip').css('display', 'inline-block');});
 	$(document).on('mouseleave', '.ProgressBar#VideoPB', function(e) {$('.ProgressBarTooltip').css('display', 'none');});
 	$(document).on('mousemove', '.ProgressBar#VideoPB', function(e) {
@@ -262,9 +279,25 @@ $(function() {
 		}, ok:function(d){
 		}}, function(d){return "Couldn't load ressource " + $('#ressourceName').val() + ".";});
 	});
-	$('#InterfaceAddBtn').on('mouseup', function(e) { hideOnClickoutAction(e, $('#AddRessourceDiag')); });
-	$('#InterfaceSearchBtn').on('mouseup', function(e) { hideOnClickoutAction(e, $('#SearchDiag'));
+	$(document).on('click', '#ParametersSaveBtn', function() {
+		setLoading('#ParametersDiag', true);
+		var values = {};
+		$('#ParametersDiag table tr td input').each(function(index, data) {
+			if ($(this).attr('type') == "checkbox") {
+				values[$(this).attr('id')] = $(this).is(":checked")
+			} else {
+				values[$(this).attr('id')] = $(this).val();
+			}
+		});
+		sendOrder('setParameters', values, {anyway: function(d){
+			setLoading('#ParametersDiag', false);
+			$('#ParametersDiag').slideUp("slow", function() {}); 
+		}, ok:function(d){
+		}}, function(d){return "Couldn't save parameters.";});
 	});
+	$('#InterfaceAddBtn').on('mouseup', function(e) { hideOnClickoutAction(e, $('#AddRessourceDiag')); });
+	$('#InterfaceSearchBtn').on('mouseup', function(e) { hideOnClickoutAction(e, $('#SearchDiag'));	});
+	$('#InterfaceParametersBtn').on('mouseup', function(e) { hideOnClickoutAction(e, $('#ParametersDiag'));	});
 	$(document).on('mouseup', function(e) {
 		$('.HideOnClickoutDialog').each( function(i, elem) {
 			if (!$(e.target).is($(elem)) && $(e.target).closest($(elem)).length == 0) {
@@ -272,7 +305,7 @@ $(function() {
 			}
 		});
 	});
-	$('#searchString').keypress(function (e) {
+	$('#searchString').keyup(function (e) {
 		$('#SearchDiag').toggleClass('HideOnClickoutDialog', $(this).val().length == 0)
 		if(e.which == 13) {
 			triggerSearch();
@@ -281,6 +314,28 @@ $(function() {
 				clearTimeout(gSearchTimeout);
 			}
 			gSearchTimeout = setTimeout(triggerSearch, 1000)
+		}
+		e.stopPropagation();
+	});
+	$('input').keyup(function (e) {
+		if ($(this).attr('type') == "text" || $(this).attr('type') == "checkbox"  || $(this).attr('type') == "number") {
+			e.stopPropagation()
+		}
+	});
+	$(document).keyup(function(e) {
+		if (e.which == 32) {
+			playPause();
+			e.preventDefault();
+		} else if (e.which == 37) {
+			setLoading('.Thumbnail', true);
+			sendOrder('goBack', {}, {anyway: function(d){setLoading('.Thumbnail', false);}, 
+				ok: function(d){}}, function(d){return "Couldn't go back.";});
+			e.preventDefault();
+		} else if (e.which == 39) {
+			setLoading('.Thumbnail', true);
+			sendOrder('goForward', {}, {anyway: function(d){setLoading('.Thumbnail', false);}, 
+				ok: function(d){}}, function(d){return "Couldn't go forward.";});
+			e.preventDefault();
 		}
 	});
 	$(document).on('click', '.RefreshButton', function(e) {
@@ -295,16 +350,10 @@ $(function() {
 
 	$('.RessourceWrapper').resizable({
 		handles: 'e',
-		minWidth: 100,
-		stop:function(event, ui) {
-			ui.element.width(((ui.element.width()/ui.element.parent().width())*100)+'%');
-		}
+		minWidth: 100
 	});
 	$('.videoWrapperInner').resizable({
 		handles: 's',
-		minHeight: 100,
-		stop:function(event, ui) {
-			ui.element.height(((ui.element.height()/ui.element.parent().parent().height())*100)+'%');
-		}
+		minHeight: 100
 	});
 });

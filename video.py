@@ -122,7 +122,7 @@ def ProcessYoutubeURL(url, name, pl=None, changeCallBack=None, lock = None, vid=
 			cmdLine += '-u ' + params.ytUsername + ' -p ' + params.ytPassword + ' '
 		if params.cookiesPath:
 			cmdLine += '--cookies ' + params.cookiesPath + ' '
-		cmd = subprocess.Popen(cmdLine + '"' + url + '"', shell=True, stdout=subprocess.PIPE)
+		cmd = subprocess.Popen(cmdLine + '-- "' + url + '"', shell=True, stdout=subprocess.PIPE)
 		isPlaylist = False
 		infos = []
 		for line in cmd.stdout:
@@ -261,8 +261,8 @@ class Playlist(BaseModel):
 	#def getVideosFiltered(self, searchStr):
 	#	return [vid for vid in self.videos if vid.matchesSearch(searchStr)]
 
-	def getAllVideosFiltered(self, searchStr, alphaOrdering = False):
-		return [vid for vid in self.getAllVideos(alphaOrdering) if vid.matchesSearch(searchStr)]
+	def getAllVideosFiltered(self, searchStr, alphaOrdering = False, hideViewed = False):
+		return [vid for vid in self.getAllVideos(alphaOrdering) if vid.matchesSearch(searchStr) and not (hideViewed and vid.viewed)]
 
 	def addedVideos(self, nb, first = True):
 		if first:
@@ -361,6 +361,30 @@ class Video(BaseModel):
 				res = str(tot) + ':' + res
 		return res
 
+class ParameterDescriptor:
+	def __init__(self, name, descr, typ, val):
+		self.name = name
+		self.description = descr
+		self.type = typ
+		self.value = val
+
+	def setValue(self, s):
+		if self.type == 'Boolean':
+			s = 'True' if s=='true' else 'False'
+		elif self.type == 'Text':
+			s = '"' + s + '"'
+		elif self.type == 'Number':
+			pass
+		else:
+			return False
+		params = Parameters.get()
+		try:
+			exec('params.'+self.name+' = '+s)
+		except:
+			return False
+		params.save()
+		return True
+
 class Parameters(BaseModel):
 	ytUsername = TextField(null=True)
 	ytPassword = TextField(null=True)
@@ -372,7 +396,28 @@ class Parameters(BaseModel):
 	maxPlNameCharacters = IntegerField(default = 20)
 	thumbnailOffset = DoubleField(default = 0.25)
 	extractInfoTimeOut = DoubleField(default = 15.0)
+	autoRestartPosThresh = DoubleField(default = 5)
 	dbIdTag = IntegerField()
+	arrowKeyMoveDuration = DoubleField(default = 5)
+
+	def getAdjustableParameters(self):
+		adjList = {}
+		# Modify this to add adjustable parameters
+		adjList['Youtube'] = [('ytUsername','Login'), ('ytPassword', 'Password'), ('cookiesPath', 'Path to cookie file')]
+		adjList['General'] = [('extensions', 'File extensions'), ('viewedThreshold', 'Viewed threshold'), ('thumbnailOffset', 'Thumbnail point'), ('arrowKeyMoveDuration', 'Jump size for arrowkeys (s)')]
+		totParams = {}
+		for cat, lst in adjList.items():
+			totParams[cat] = []
+			for item, descr in lst:
+				v = eval('self.'+item)
+				if isinstance(v, bool):
+					typ = "Boolean"
+				elif isinstance(v, str):
+					typ = "Text"
+				else:
+					typ = "Number"
+				totParams[cat].append(ParameterDescriptor(item, descr, typ, v))
+		return totParams
 
 #####################################
 # Create tables if they don't exist #

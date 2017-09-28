@@ -51,6 +51,10 @@ def sendOrder():
 		alphaOrdering = request.args.get('alphaOrdering', '', str)
 		ok = appli.setOrdering(alphaOrdering == 'true')
 		res = jsonify(result = ok, updatedParts = appli.getUpdatedParts(oldHashes))
+	elif order == 'changeHideViewed':
+		hideViewed = request.args.get('hideViewed', '', str)
+		ok = appli.setHideViewed(hideViewed == 'true')
+		res = jsonify(result = ok, updatedParts = appli.getUpdatedParts(oldHashes))
 	elif order == 'changePos':
 		relPos = request.args.get('relPos', 0, type=float)
 		res = jsonify(result=appli.player.setPosition(relPos * appli.player.getDuration()), position=appli.player.getPosition(), duration=appli.player.getDuration(), isPlaying = appli.player.isPlaying())
@@ -74,6 +78,19 @@ def sendOrder():
 	elif order == 'refreshRessource':
 		plId = request.args.get('ressourceId', -1, type=int)
 		ok = appli.refreshRessource(plId)
+		res = jsonify(result = ok, updatedParts = appli.getUpdatedParts(oldHashes))
+	elif order == 'goBack':
+		ok = appli.goBack()
+		res = jsonify(result = ok, updatedParts = appli.getUpdatedParts(oldHashes))
+	elif order == 'goForward':
+		ok = appli.goForward()
+		res = jsonify(result = ok, updatedParts = appli.getUpdatedParts(oldHashes))
+	elif order == 'setParameters':
+		params = request.args#.get('params', '', type=str)
+		#print(request.args)
+		#print(request.args.get('params'))
+		#print(params)
+		ok = appli.setParameters(params)
 		res = jsonify(result = ok, updatedParts = appli.getUpdatedParts(oldHashes))
 	return res
 

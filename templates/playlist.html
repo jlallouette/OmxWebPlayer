@@ -3,10 +3,12 @@
 {%- if appli.currPlaylist -%}
 	<div style="float:right;">
 		<input type="checkbox" id="alphaOrderChkbx" {{ "checked" if appli.alphaOrdering else "" }}> 
-		<label for="alphaOrderChkbx">Alphabetical ordering </label><br/>
+		<label for="alphaOrderChkbx">Alphabetical ordering </label>
+		<input type="checkbox" id="viewedChkbx" {{ "checked" if appli.hideViewed else "" }}> 
+		<label for="viewedChkbx">Hide viewed</label><br/>
 	</div>
 	<span class="BlockName">{{ appli.currPlaylist.name }}</span><br/>
-	{%- for vid in appli.currPlaylist.getAllVideosFiltered(appli.searchFilterStr, appli.alphaOrdering) -%}
+	{%- for vid in appli.currPlaylist.getAllVideosFiltered(appli.searchFilterStr, appli.alphaOrdering, appli.hideViewed) -%}
 	<div class="PlaylistVideo">
 		<div class="PlaylistThumbnail">
 			<img class="PlaylistImg" src="{{ vid.getThumbnail() }}"/>
