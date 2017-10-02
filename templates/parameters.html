@@ -1,0 +1,24 @@
+{# parameters.html #}
+<table>
+{% for cat, params in appli.getParametersList().items() %}
+<tr><td colspan="2"><div class="ParamCategory">{{ cat }}</span></td></tr>
+	{% for p in params %}
+		<tr><td>{{ p.description }}:</td><td>
+		{% if p.type == "Text" %}
+			<input type="text" id="{{ p.name }}" value="{{ p.value }}" style="width:95%;"/>
+		{% elif p.type == "Boolean" %}
+			<input type="checkbox" id="{{ p.name }}" {{ "checked" if p.value else "" }}> 
+		{% elif p.type == "Number" %}
+			<input type="number" id="{{ p.name }}" value="{{ p.value }}" style="width:95%;"/>
+		{% else %}
+			Invalid parameter description.
+		{% endif %}
+		</td></tr>
+	{% endfor %}
+{% endfor %}
+<tr><td></td><td><button id="ParametersSaveBtn">Save</button></td></tr>
+</table>
+<div class="LoadingIndicator">
+	<img src="static/img/loading.gif"/>
+</div>
+
