@@ -319,7 +319,10 @@ $(function() {
 	});
 	$('input').keyup(function (e) {
 		if ($(this).attr('type') == "text" || $(this).attr('type') == "checkbox"  || $(this).attr('type') == "number") {
-			e.stopPropagation()
+			e.stopPropagation();
+			if (e.which == 13) {
+				$(this).parents('.Dialog').find('button').click();
+			}
 		}
 	});
 	$(document).keyup(function(e) {

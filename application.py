@@ -5,18 +5,6 @@ import av
 
 from player import *
 
-
-#def updatePlaylists(lock, appli):
-#	while True:
-#		with lock:
-#			playlists = [pl for pl in Playlist.select().where(~(Playlist.justCreated) & Playlist.parent.is_null())]
-#		for pl in playlists:
-#			print('Updating playlist:', pl.URL)
-#			ProcessPathURL(pl.URL, pl.name, pl = pl, changeCallBack = lambda x:appli.playlistUpdated(x), lock=lock, slow = True)
-#		# TODO Set this as a parameter
-#			sleep(5)
-#		sleep(5)
-
 def extractInfos(vid, q, offstrt, dbIdTag):
 	try:
 		container = av.open(vid.path)
@@ -33,19 +21,6 @@ def extractInfos(vid, q, offstrt, dbIdTag):
 		q.put(thumbPath)
 	except:
 		pass
-	# Save the frame
-	#with lock:
-	#	ofl = json.loads(vid.okFormatsList)
-	#	ofl[1]['name'] = res
-	#	vid.okFormatsList = json.dumps(ofl)
-	#	vid.save()
-	#if frame:
-	#	thumbPath = 'static/thumbnails/' + str(vid.id) + '.jpg'
-	#	frame.to_image().save(thumbPath)
-	#	q.put(thumbPath)
-		#with lock:
-		#	vid.thumbnailURL = thumbPath
-		#	vid.save()
 
 def extractInfosFromFiles(lock, appli):
 	while True:

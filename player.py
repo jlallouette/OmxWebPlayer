@@ -19,13 +19,13 @@ class Player:
 	def LoadVideo(self, video):
 		if self.isStarted():
 			self.stop()
+		self.wasPlaying = False
 		self.currVideo = video
 		self.formatId = 0
 		self.subtitleId = -1
 		self.audioStreamId = 0
 		self.currTotViewed = 0
 		self.lastPos = 0
-		self.wasPlaying = False
 
 	# Set the format of the video
 	def setVideoFormat(self, formatId):

@@ -58,38 +58,41 @@ def ProcessPath(path, name, pl = None, changeCallBack = None, lock = None, first
 
 			changeCallBack(currPl)
 
-			# Add video Files
-			allVidPaths = []
-			for vfm in vidFileMatch:
-				vidPath = os.path.join(dirpath, vfm.group(0))
-				allVidPaths.append(vidPath)
-				with lock:
-					alreadyExist = Video.select().where(Video.path == vidPath).count() > 0
-				if not alreadyExist:
-					# Duration, resolution etc are extracted in a separate thread
-					dur = 10
-					res = '10x10'
-					okFormats = [{'name':'Auto', 'url':''},{'name':res, 'url':vidPath}]
+			try:
+				# Add video Files
+				allVidPaths = []
+				for vfm in vidFileMatch:
+					vidPath = os.path.join(dirpath, vfm.group(0))
+					allVidPaths.append(vidPath)
 					with lock:
-						vid = Video.create(origURL = vidPath, path = vidPath, title = vfm.group(1), duration=dur, playlist = currPl, okFormatsList = json.dumps(okFormats), needsInfoExtract = True)
-						currPl.addedVideos(1)
+						alreadyExist = Video.select().where(Video.path == vidPath).count() > 0
+					if not alreadyExist:
+						# Duration, resolution etc are extracted in a separate thread
+						dur = 10
+						res = '10x10'
+						okFormats = [{'name':'Auto', 'url':''},{'name':res, 'url':vidPath}]
+						with lock:
+							vid = Video.create(origURL = vidPath, path = vidPath, title = vfm.group(1), duration=dur, playlist = currPl, okFormatsList = json.dumps(okFormats), needsInfoExtract = True)
+							currPl.addedVideos(1)
 
-					changeCallBack(currPl)
-				if slow:
-					sleep(sleepTime)
+						changeCallBack(currPl)
+					if slow:
+						sleep(sleepTime)
 
-			# Remove deleted or unaccessible videos
-			with lock:
-				nbOrphans = Video.select().where((Video.playlist == currPl) & ~(Video.path << allVidPaths)).count()
-				if nbOrphans > 0:
-					Video.delete().where((Video.playlist == currPl) & ~(Video.path << allVidPaths)).execute()
-					currPl.addedTotVideos(-nbOrphans)
-					currPl.addedVideos(-nbOrphans)
-					changeCallBack(currPl)
+				# Remove deleted or unaccessible videos
+				with lock:
+					nbOrphans = Video.select().where((Video.playlist == currPl) & ~(Video.path << allVidPaths)).count()
+					if nbOrphans > 0:
+						Video.delete().where((Video.playlist == currPl) & ~(Video.path << allVidPaths)).execute()
+						currPl.addedTotVideos(-nbOrphans)
+						currPl.addedVideos(-nbOrphans)
+						changeCallBack(currPl)
 
-			# Add subdirectories
-			for dirn in dirNames:
-				allPl += ProcessPath(os.path.join(path, dirn), name, currPl, changeCallBack, lock, firstCall=False, slow = slow) 
+				# Add subdirectories
+				for dirn in dirNames:
+					allPl += ProcessPath(os.path.join(path, dirn), name, currPl, changeCallBack, lock, firstCall=False, slow = slow) 
+			except Exception as e:
+				print(str(e))
 
 			# Delete empty playlists
 			with lock:

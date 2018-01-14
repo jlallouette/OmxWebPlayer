@@ -7,7 +7,7 @@
 		<input type="checkbox" id="viewedChkbx" {{ "checked" if appli.hideViewed else "" }}> 
 		<label for="viewedChkbx">Hide viewed</label><br/>
 	</div>
-	<span class="BlockName">{{ appli.currPlaylist.name }}</span><br/>
+	<span class="BlockName">{{ appli.currPlaylist.URL }}</span><br/>
 	{%- for vid in appli.currPlaylist.getAllVideosFiltered(appli.searchFilterStr, appli.alphaOrdering, appli.hideViewed) -%}
 	<div class="PlaylistVideo">
 		<div class="PlaylistThumbnail">
