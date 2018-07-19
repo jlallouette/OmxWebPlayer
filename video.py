@@ -206,7 +206,7 @@ def InsertYtVideo(infos, origURL, pl = None, lock = None, vid = None):
 	vidId = infos['id']
 	# Handle the format list
 	p = re.compile('.*[^0-9]+((\d+)x\d+).*');
-	formats = [f for f in infos['formats'] if ('only' not in f['format']) and ('video' not in f['format'])]
+	formats = [f for f in infos['formats'] if ('only' not in f['format']) and ('video' not in f['format']) and ('none' not in f['acodec'])]
 	okFormats = [{'name':'Auto', 'url':''}]
 	for f in sorted(formats, key=lambda f:int(p.match(f['format']).group(2)), reverse=True):
 		okFormats.append({'name':p.match(f['format']).group(1),'url':f['url']})
